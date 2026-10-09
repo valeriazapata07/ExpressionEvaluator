@@ -1,4 +1,5 @@
-﻿namespace Frontend.Windows
+﻿
+namespace Frontend.Windows
 {
     partial class Form1
     {
