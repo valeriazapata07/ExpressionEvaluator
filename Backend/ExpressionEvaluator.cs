@@ -1,5 +1,5 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using System.Reflection.Metadata;
+﻿
+using System.Globalization;
 
 namespace Backend;
 
@@ -7,53 +7,92 @@ public static class ExpressionEvaluator
 {
     public static double Evalute(string infix) => EvalutePostfix(ToPostfix(infix));
 
-    private static string ToPostfix(string infix)
+    private static List<string> Tokenize(string infix)
     {
-        var posfix = string.Empty;
-        var stack = new Stack<char>();
+        var tokens = new List<string>();
+        var number = string.Empty;
         foreach (var item in infix)
         {
-            if (IsOperator(item))
+            if (item is >= '0' and <= '9' || item == '.')
             {
-                if (item == ')')
+                number += item;
+                continue;
+            }
+            if (number != string.Empty)
+            {
+                tokens.Add(number);
+                number = string.Empty;
+            }
+            if (char.IsWhiteSpace(item))
+            {
+                continue;
+            }
+            if (!IsOperator(item))
+            {
+                throw new Exception("Invalid expression.");
+            }
+            if (item == '-' && (tokens.Count == 0 || tokens[^1] == "("))
+            {
+                tokens.Add("0");
+            }
+            tokens.Add(item.ToString());
+        }
+        if (number != string.Empty)
+        {
+            tokens.Add(number);
+        }
+        return tokens;
+    }
+
+    private static List<string> ToPostfix(string infix)
+    {
+        var postfix = new List<string>();
+        var stack = new Stack<char>();
+        foreach (var token in Tokenize(infix))
+        {
+            if (!IsOperator(token[0]))
+            {
+                postfix.Add(token);
+                continue;
+            }
+
+            var item = token[0];
+            if (item == ')')
+            {
+                if (stack.Count == 0)
                 {
-                    var ope = stack.Pop();
-                    while(ope != '(')
-                    {
-                        posfix += ope;
-                        ope = stack.Pop();
-                    }
+                    throw new Exception("Invalid expression.");
                 }
-                else
+                var ope = stack.Pop();
+                while (ope != '(')
                 {
+                    postfix.Add(ope.ToString());
                     if (stack.Count == 0)
                     {
-                        stack.Push(item);
+                        throw new Exception("Invalid expression.");
                     }
-                    else
-                    {
-                        if (PriorityInfix(item) > PriorityStack(stack.Peek()))
-                        {
-                            stack.Push(item);
-                        }
-                        else
-                        {
-                            posfix += stack.Pop();
-                            stack.Push(item);
-                        }
-                    }
+                    ope = stack.Pop();
                 }
             }
             else
             {
-                posfix += item;
+                while (stack.Count > 0 && PriorityInfix(item) <= PriorityStack(stack.Peek()))
+                {
+                    postfix.Add(stack.Pop().ToString());
+                }
+                stack.Push(item);
             }
         }
-        do
+        while (stack.Count > 0)
         {
-            posfix += stack.Pop();
-        } while (stack.Count != 0);
-        return posfix;
+            var ope = stack.Pop();
+            if (ope == '(')
+            {
+                throw new Exception("Invalid expression.");
+            }
+            postfix.Add(ope.ToString());
+        }
+        return postfix;
     }
 
     private static int PriorityStack(char op) => op switch
@@ -80,21 +119,29 @@ public static class ExpressionEvaluator
 
     private static bool IsOperator(char item) => item == '^' || item == '*' || item == '/' || item == '+' || item == '-' || item == '(' || item == ')';
 
-    private static double EvalutePostfix(string postfix)
+    private static double EvalutePostfix(List<string> postfix)
     {
         var stack = new Stack<double>();
         foreach (var item in postfix)
         {
-            if (IsOperator(item))
+            if (IsOperator(item[0]))
             {
+                if (stack.Count < 2)
+                {
+                    throw new Exception("Invalid expression.");
+                }
                 var ope2 = stack.Pop();
                 var ope1 = stack.Pop();
-                stack.Push(Calculate(ope1, ope2, item));
+                stack.Push(Calculate(ope1, ope2, item[0]));
             }
             else
             {
-                stack.Push(char.GetNumericValue(item));
+                stack.Push(double.Parse(item, CultureInfo.InvariantCulture));
             }
+        }
+        if (stack.Count != 1)
+        {
+            throw new Exception("Invalid expression.");
         }
         return stack.Pop();
     }
